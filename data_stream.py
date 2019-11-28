@@ -8,12 +8,12 @@ import pyspark.sql.functions as funcs
 # TODO Create a schema for incoming resources ✅
 schema = StructType([
     StructField("crime_id", StringType(), True),                
-    StructField("original_crime_type_name", StringType(), True),
+    StructField("original_crime_type_name", StringType(), False),
     StructField("report_date", StringType(), True),             
     StructField("call_date", StringType(), True),               
     StructField("offense_date", StringType(), True),            
     StructField("call_time", StringType(), True),               
-    StructField("call_date_time", StringType(), True),          
+    StructField("call_date_time", StringType(), False),          
     StructField("disposition", StringType(), True),             
     StructField("address", StringType(), True),                 
     StructField("city", StringType(), True),                    
@@ -48,32 +48,26 @@ def run_spark_job(spark):
             
     service_table = kafka_df \
         .select(funcs.from_json(funcs.col('value'), schema).alias("DF")) \
-        .select("DF.*") \
-        #.withWatermark("call_date_time", "10 seconds")
+        .select("DF.*")
        
 
     # TODO select original_crime_type_name and disposition ✅
-    #.withWatermark("call_date_time", "10 seconds") \
-
     distinct_table = service_table \
         .select("original_crime_type_name", "disposition") \
         .distinct()
 
     # count the number of original crime type ✅
-    agg_df = service_table \
+#     .withWatermark(service_table.call_date_time, "10 seconds") \
+
+    agg_df = distinct_table \
+        .dropna() \
         .select("original_crime_type_name") \
         .groupby("original_crime_type_name") \
-        .agg({"original_crime_type_name" : "count"})
-    
-#     agg_df = distinct_table \
-#         .select("original_crime_type_name", "call_date_time") \
-#         .withWatermark("call_date_time", " seconds") \
-#         .groupBy("call_date_time") \
-#         .count()
+        .agg({"original_crime_type_name" : "count"}) \
+        .orderBy("count(original_crime_type_name)", ascending=False)
         
     # TODO Q1. Submit a screen shot of a batch ingestion of the aggregation
     # TODO write output stream ✅
-    
     # .option("truncate", "false") \
     # .outputMode('Append') \
     # .option("path", "./output/") \
@@ -81,8 +75,8 @@ def run_spark_job(spark):
     query = agg_df \
         .writeStream \
         .format('console') \
-        .outputMode('Update') \
-        .trigger(processingTime="20 seconds") \
+        .outputMode('Complete') \
+        .trigger(processingTime="10 seconds") \
         .start()
 
     # TODO attach a ProgressReporter
@@ -101,7 +95,7 @@ def run_spark_job(spark):
 
     # TODO join on disposition column ✅
     join_query = agg_df \
-        .join(radio_code_df, col("agg_df.disposition") == col("radio_code_df.disposition"), "inner")
+        .join(radio_code_df, col("agg_df.disposition") == col("radio_code_df.disposition"), "left_outer")
 
 
     join_query.awaitTermination()

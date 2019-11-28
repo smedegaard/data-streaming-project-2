@@ -18,7 +18,8 @@ async def consume(topic_name):
             elif message.error() is not None:
                 print(f'error: {message.error()}')
             else:
-                print(f'MESSAGE: {message.key()}: {message.value()}')
+                print(f'{message.value()}')
+                print('\n')
   
         await asyncio.sleep(0.01)
 

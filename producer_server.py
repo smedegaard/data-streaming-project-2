@@ -13,12 +13,14 @@ class ProducerServer(KafkaProducer):
 
     #TODO we're generating a dummy data ✅
     def generate_data(self):
-        with open(self.input_file) as file:
-            for line in file:
-                message = self.dict_to_binary(line)
+        with open(self.input_file, 'r') as file:
+            data = json.load(file)
+            for event in data:
+                message = self.dict_to_binary(event)
                 # TODO send the correct data ✅
                 self.send(self.topic, message)
-                time.sleep(1)
+                time.sleep(0.1)
+                 
 
     # TODO fill this in to return the json dictionary to binary ✅
     def dict_to_binary(self, json_dict):
